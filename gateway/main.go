@@ -7,10 +7,13 @@ import (
 	"os"
 
 	helper "github.com/MayurUbarhande0/Simple-cloud-storage/db"
+			"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/middleware"
+			"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/routes"
 	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/server"
 	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/statemanager"
 
 	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -21,10 +24,6 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
 		log.Fatal("DB_URL environment variable is not set")
-	}
-
-	if err := os.MkdirAll("/cloud", 0755); err != nil {
-		log.Fatalf("Failed to create base storage directory: %v", err)
 	}
 
 	sqlDB, err := sql.Open("sqlite3", dbURL)
@@ -47,12 +46,13 @@ func main() {
 	server.StateMgr = stateMgr
 	server.DbInstance = dbHelper
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/upload", server.Uploadfile)
-	mux.HandleFunc("/download", server.Getfile)
+	mux := routes.NewRouter()
+
+	// Wrap router with CORS middleware so frontend served from other origins can call the API
+	handler := middleware.CORS(mux)
 
 	log.Printf("[Gateway] Storage server listening on port :8080...")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

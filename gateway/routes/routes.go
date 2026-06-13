@@ -16,11 +16,13 @@ func NewRouter() *http.ServeMux {
 	uploadHandler := http.HandlerFunc(server.Uploadfile)
 	authenticatedUpload := middleware.Authhandler(uploadHandler) // Wrap it up!
 
-	// 2. Register the endpoint route pattern
+	// 2. Register the upload endpoint route pattern
 	mux.Handle("/upload", authenticatedUpload)
 
-	// You can add your download/sync status routes here easily later:
-	// mux.Handle("/download", middleware.AuthMiddleware(http.HandlerFunc(server.Downloadfile)))
+	// 3. Wrap and register the download endpoint with middleware
+	downloadHandler := http.HandlerFunc(server.Getfile)
+	authenticatedDownload := middleware.Authhandler(downloadHandler)
+	mux.Handle("/download", authenticatedDownload)
 
 	return mux
 }

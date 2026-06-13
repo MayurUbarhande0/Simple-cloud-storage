@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Cloud Storage - Frontend</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 12px; border-radius: 6px; }
+    label{ display:block; margin-top:8px }
+    input[type=text], input[type=file]{ width:100% }
+    button{ margin-top:10px }
+    pre{ background:#f6f6f6; padding:8px }
+  </style>
+</head>
+<body>
+  <h1>Simple Cloud Storage - Frontend</h1>
+
+  <div class="card">
+    <h3>Upload File</h3>
+    <label>Token (Bearer)</label>
+    <input id="upload-token" type="text" placeholder="Paste JWT token here" />
+    <label>Path</label>
+    <input id="upload-path" type="text" value="documents/test" />
+    <label>Filename (metadata)</label>
+    <input id="upload-filename" type="text" value="test_upload.txt" />
+    <label>File</label>
+    <input id="upload-file" type="file" />
+
+    <button id="upload-btn">Upload</button>
+    <div id="upload-result"></div>
+  </div>
+
+  <div class="card">
+    <h3>Download File</h3>
+    <label>Token (Bearer)</label>
+    <input id="download-token" type="text" placeholder="Paste JWT token here" />
+    <label>File ID</label>
+    <input id="download-file-id" type="text" />
+    <button id="download-btn">Download</button>
+    <div id="download-result"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
