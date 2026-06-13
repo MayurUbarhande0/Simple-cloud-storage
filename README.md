@@ -1,17 +1,22 @@
 ```markdown
 # Simple Cloud Storage
 
-A lightweight, high-performance distributed cloud storage system built completely in Go. The architecture separates a public-facing **HTTP Gateway** from private **TCP Storage Nodes**, optimizing memory usage via low-level binary framing and on-the-fly streaming gzip compression.
+This is an Simple File Storage system meant to be run locally 
+It uses sql database for store file details 
+it have jwt auth
+Some part of the system are meant to build by you , like login and signup , but i will try to add that
+
 
 ---
 
 ## 🏗️ Architecture Layout
 
-* **HTTP Gateway (Port `:8080`):** Acts as the reverse proxy entryway. Handles client authentication (JWT verification), manages regional global metadata states (`state.json`), and streams binary files directly to target storage instances.
-* **TCP Storage Node (Port `:8081`):** A lightweight binary worker node that receives custom data frame payloads over raw TCP sockets, validates internal gateway authorization handshakes, and writes incoming network streams directly to disk blocks through a compression pipeline.
+* **HTTP Gateway (Port `:8080`):** Acts as the reverse proxy entryway. Handles client authentication (JWT verification), it have routes of like /upload /download etc
+
 
 ```text
-Client ──[ HTTP Multipart / JWT ]──> Gateway ──[ TCP Binary Frame ]──> Storage Node (Gzip)
+Client ──[ HTTP Multipart / JWT ]──> Gateway (Gzip)
+
 
 ```
 
@@ -95,34 +100,9 @@ Gateway Core JSON Body payload: {"file_id":"d8858bgsaf1p4k...", "status":"succes
 
 ---
 
-## ⚡ Features Completed
+## ⚡ WILL DO SOON
 
 * **Dynamic Custom Binary Framing Protocol:** Uses 1-byte dynamic size headers to safely transmit structural payloads without buffer hanging, size constraints, or network deadlocks.
 * **Zero-Memory Allocation Stream Copying:** Utilizes `io.Copy` to stream incoming multipart form uploads straight across network TCP sockets without buffering large chunks into system RAM.
 * **Encrypted TCP Handshakes:** Gateway authentication tokens are encrypted using an AES-GCM helper and verified via SHA-256 signatures on the storage node before data channels unlock.
 * **Thread-Safe Local State Engine:** Serializes asset metadata blocks dynamically to a local `state.json` registry file under a transactional `sync.RWMutex` concurrent lock pattern.
-
----
-
-## 🚧 Missing Features & Coming Soon
-
-While the core file ingestion pipeline is functional and structurally safe, the following production storage components are missing and slated for upcoming implementation cycles:
-
-### 1. File Download Engine (`0x02` Command)
-
-* **Missing:** The ability for users to retrieve files from storage.
-* **Coming Soon:** A download endpoint on the gateway mapping to a new command frame over TCP. The storage node will open the compressed file from disk, stream it into an on-the-fly decompression pipe, and flush it through the gateway back to the client as an attachment response.
-
-### 2. Global Metadata State Sync
-
-* **Missing:** State sharing between multiple scaling gateway instances.
-* **Coming Soon:** Moving asset registries out of a single local `state.json` file into an external distributed database or establishing a secure gossip/rebalancing background loop to broadcast metadata states across cluster boundaries.
-
-### 3. Dynamic Node Discovery & Health Check Monitoring
-
-* **Missing:** Smart routing (currently bound to a static `STORAGE_IP` configuration).
-* **Coming Soon:** A lightweight background heartbeat ping daemon. The gateway will poll active storage nodes, tracking available storage blocks, bandwidth, and node status to safely balance writes.
-
-```
-
-```
