@@ -1,43 +1,58 @@
 package main
 
 import (
+	"database/sql"
 	"log"
+	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
-	// Replace this import path with the exact module name defined inside your go.mod file
-	"github.com/MayurUbarhande0/Simple-cloud-storage/protocol"
+	helper "github.com/MayurUbarhande0/Simple-cloud-storage/db"
+	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/middleware"
+	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/routes"
+	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/server"
+	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/statemanager"
+
+	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
-	// 1. Structural Sanity Check: Ensure required cryptographic secrets are active
-	if os.Getenv("ENCRYPTION_KEY") == "" || os.Getenv("AUTH_KEY") == "" {
-		log.Fatal("Critical Boot Failure: ENCRYPTION_KEY and AUTH_KEY environment variables must be configured.")
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
 	}
 
-	// 2. Resolve target socket network address
-	listenAddr := os.Getenv("LISTEN_ADDR")
-	if listenAddr == "" {
-		listenAddr = ":8081" // Default fallback port if none specified
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL environment variable is not set")
 	}
 
-	// 3. Initialize your custom protocol server engine instance
-	server := protocol.NewServer(listenAddr)
+	sqlDB, err := sql.Open("sqlite3", dbURL)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer sqlDB.Close()
 
-	// 4. Spin up your AcceptLoop in a background thread to prevent blocking our signal hook
-	go func() {
-		log.Printf("🚀 Storage engine node initializing network socket listener on %s...", listenAddr)
-		if err := server.Start(); err != nil {
-			log.Fatalf("Fatal network runtime engine error: %v", err)
-		}
-	}()
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("Database unreachable: %v", err)
+	}
 
-	// 5. Graceful Intercept: Block main thread execution until system kill signals hit the application
-	shutdownSignal := make(chan os.Signal, 1)
-	signal.Notify(shutdownSignal, os.Interrupt, syscall.SIGTERM)
+	dbHelper := helper.NewDb(sqlDB)
 
-	<-shutdownSignal // Halts right here until Ctrl+C (SIGINT) or SIGTERM is registered
+	stateMgr, err := statemanager.NewManager("./state.json", dbHelper)
+	if err != nil {
+		log.Fatalf("Failed to initialize State Manager: %v", err)
+	}
 
-	log.Println("🛑 Termination signal recognized. Completing active background transfer sockets and spinning down gracefully.")
+	server.StateMgr = stateMgr
+	server.DbInstance = dbHelper
+
+	mux := routes.NewRouter()
+
+	// Wrap router with CORS middleware so frontend served from other origins can call the API
+	handler := middleware.CORS(mux)
+
+	log.Printf("[Gateway] Storage server listening on port :8080...")
+	if err := http.ListenAndServe(":8080", handler); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
+	}
 }
