@@ -1,45 +1,58 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 
-	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/routes"
+	helper "github.com/MayurUbarhande0/Simple-cloud-storage/db"
 	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/server"
 	"github.com/MayurUbarhande0/Simple-cloud-storage/gateway/statemanager"
+
+	"github.com/joho/godotenv"
 )
 
-var StateMgr *statemanager.Manager
-
 func main() {
-	// Initialize the manager instance and link it to your server package variable
-	mgr, err := statemanager.NewManger("state.json")
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL environment variable is not set")
+	}
+
+	if err := os.MkdirAll("/cloud", 0755); err != nil {
+		log.Fatalf("Failed to create base storage directory: %v", err)
+	}
+
+	sqlDB, err := sql.Open("sqlite3", dbURL)
 	if err != nil {
-		log.Fatalf("Failed to balance state records: %v", err)
+		log.Fatalf("Failed to open database: %v", err)
 	}
-	server.StateMgr = mgr // Bind it to your server package variable!
-	// 1. Sanity checks for Gateway requirements
-	if os.Getenv("ENCRYPTION_KEY") == "" || os.Getenv("AUTH_KEY") == "" {
-		log.Fatal("Gateway Error: Cryptographic environment variables are missing.")
-	}
-	if os.Getenv("STORAGE_IP") == "" {
-		log.Fatal("Gateway Error: STORAGE_IP destination address is not configured.")
+	defer sqlDB.Close()
+
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("Database unreachable: %v", err)
 	}
 
-	// 2. Resolve local HTTP server port
-	httpPort := os.Getenv("GATEWAY_HTTP_PORT")
-	if httpPort == "" {
-		httpPort = ":8080" // Fallback default
+	dbHelper := helper.NewDb(sqlDB)
+
+	stateMgr, err := statemanager.NewManager("./state.json", dbHelper)
+	if err != nil {
+		log.Fatalf("Failed to initialize State Manager: %v", err)
 	}
 
-	// 3. Initialize your clean routing tree
-	router := routes.NewRouter()
+	server.StateMgr = stateMgr
+	server.DbInstance = dbHelper
 
-	log.Printf("🚀 Cloud Storage Gateway running on HTTP port %s...", httpPort)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/upload", server.Uploadfile)
+	mux.HandleFunc("/download", server.Getfile)
 
-	// 4. Fire up the HTTP Web Server
-	if err := http.ListenAndServe(httpPort, router); err != nil {
-		log.Fatalf("Gateway web server crashed: %v", err)
+	log.Printf("[Gateway] Storage server listening on port :8080...")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatalf("Server failed to start: %v", err)
 	}
 }
