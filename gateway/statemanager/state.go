@@ -5,6 +5,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	helper "github.com/MayurUbarhande0/Simple-cloud-storage/db"
 )
 
 type User struct {
@@ -16,42 +18,49 @@ type Fileheader struct {
 	File_id     string    `json:"file_id"`
 	Filename    string    `json:"filename"`
 	Uploaded    time.Time `json:"uploaded"`
-	StoragePath string
+	StoragePath string    `json:"storage_path"` // Added json tag
 	Size        int       `json:"size"`
 	LastUpdated time.Time `json:"lastupdated"`
 }
 
 type SystemState struct {
-	User map[string]*User
+	User map[string]*User `json:"users"`
 }
 
 type Manager struct {
 	Mu       sync.RWMutex
 	Filepath string
 	State    *SystemState
+	DB       *helper.Db
 }
 
-func NewManger(filepath string) (*Manager, error) {
+func NewManager(filepath string, database *helper.Db) (*Manager, error) {
 	mgr := &Manager{
 		Filepath: filepath,
 		State: &SystemState{
 			User: make(map[string]*User),
 		},
+		DB: database,
 	}
+
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-
 		if os.IsNotExist(err) {
 			return mgr, nil
 		}
 		return nil, err
 	}
+
+	if len(data) == 0 {
+		return mgr, nil
+	}
+
 	if err := json.Unmarshal(data, mgr.State); err != nil {
 		return nil, err
 	}
 	return mgr, nil
-
 }
+
 func (m *Manager) Save() error {
 	data, err := json.MarshalIndent(m.State, "", " ")
 	if err != nil {
@@ -61,9 +70,9 @@ func (m *Manager) Save() error {
 }
 
 func (m *Manager) Addfile(User_id string, fileheader Fileheader) error {
-
 	m.Mu.Lock()
 	defer m.Mu.Unlock()
+
 	user, exists := m.State.User[User_id]
 	if !exists {
 		user = &User{
@@ -73,16 +82,23 @@ func (m *Manager) Addfile(User_id string, fileheader Fileheader) error {
 		m.State.User[User_id] = user
 	}
 	user.File = append(user.File, fileheader)
+
+	if err := m.DB.Insert(User_id, fileheader.File_id, fileheader.StoragePath); err != nil {
+		return err
+	}
+
 	return m.Save()
 }
 
 func (m *Manager) GetUserFile(user_id string) []Fileheader {
-	m.Mu.Lock()
-	defer m.Mu.Unlock()
+	m.Mu.RLock()
+	defer m.Mu.RUnlock()
+
 	user, exists := m.State.User[user_id]
 	if !exists {
 		return []Fileheader{}
 	}
+
 	copiedfile := make([]Fileheader, len(user.File))
 	copy(copiedfile, user.File)
 	return copiedfile

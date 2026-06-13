@@ -27,7 +27,7 @@ func GenerateToken(user_id string) (string, error) {
 }
 
 func ValidateToken(tokenString string) (string, error) {
-	secret := os.Getenv("JWT_SECRET")
+	secret := os.Getenv("SECRET_KEY")
 
 	token, err := jwt.ParseWithClaims(tokenString, &claims{}, func(token *jwt.Token) (interface{}, error) {
 

@@ -55,9 +55,10 @@ env $(cat .env | grep -v '^#' | xargs) go run gateway/main.go
 To verify your complete, authenticated distributed storage pipeline, open a third terminal window alongside your running servers and fire the test client simulation:
 
 ```bash
-go run test/test_client.go
-
+go run ./tools/gen_token.go -user alice
 ```
+
+Then use the browser frontend in `frontend/` or `curl` to POST to `http://127.0.0.1:8080/upload`.
 
 ### 🔍 Verification Checklist
 
